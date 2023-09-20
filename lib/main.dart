@@ -3,12 +3,19 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+void main() async {
+  // main() 함수에서 async를 쓰려면 필요
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // shared_prefereneces 인스턴스 생성
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (context) => CatService()),
+        ChangeNotifierProvider(create: (context) => CatService(prefs)),
       ],
       child: const MyApp(),
     ),
@@ -35,8 +42,14 @@ class CatService extends ChangeNotifier {
   // 좋아요 사진 담을 변수
   List<String> favoriteImages = [];
 
-  CatService() {
+  SharedPreferences prefs;
+
+  CatService(this.prefs) {
     getRandomCatImage();
+
+    // favorites로 저장된 favoriteImage를 가져온다.
+    // 저장된 값이 없는 경우 null을 반환하므로 이때는 빈 배열을 넣어준다.
+    favoriteImages = prefs.getStringList("favorites") ?? [];
   }
 
   void getRandomCatImage() async {
@@ -58,6 +71,10 @@ class CatService extends ChangeNotifier {
     } else {
       favoriteImages.add(catImage); // 추가
     }
+
+    // favoriteImages를 favorites라는 이름으로 저장하기
+    prefs.setStringList("favorites", favoriteImages);
+
     notifyListeners(); //새로고침
   }
 }
@@ -101,9 +118,25 @@ class HomePage extends StatelessWidget {
                   onTap: () {
                     catService.toggleFavoriteImage(catImage);
                   },
-                  child: Image.network(
-                    catImage,
-                    fit: BoxFit.cover,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: Image.network(
+                          catImage,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: Icon(
+                          Icons.favorite,
+                          color: catService.favoriteImages.contains(catImage)
+                              ? Colors.amber
+                              : Colors.transparent,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -127,6 +160,43 @@ class FavoritePage extends StatelessWidget {
           appBar: AppBar(
             title: Text("좋아요"),
             backgroundColor: Colors.amber,
+          ),
+          body: GridView.count(
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            padding: EdgeInsets.all(8),
+            crossAxisCount: 2,
+            children: List.generate(
+              catService.favoriteImages.length,
+              (index) {
+                String catImage = catService.favoriteImages[index];
+                return GestureDetector(
+                  onTap: () {
+                    catService.toggleFavoriteImage(catImage);
+                  },
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: Image.network(
+                          catImage,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: Icon(
+                          Icons.favorite,
+                          color: catService.favoriteImages.contains(catImage)
+                              ? Colors.amber
+                              : Colors.transparent,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         );
       },
